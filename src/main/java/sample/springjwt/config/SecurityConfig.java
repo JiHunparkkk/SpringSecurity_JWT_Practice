@@ -15,11 +15,14 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import sample.springjwt.jwt.CustomLogoutFilter;
 import sample.springjwt.jwt.JWTFilter;
 import sample.springjwt.jwt.JWTUtil;
 import sample.springjwt.jwt.LoginFilter;
+import sample.springjwt.repository.RefreshRepository;
 
 @Configuration
 @EnableWebSecurity
@@ -31,6 +34,7 @@ public class SecurityConfig {
     //authenticationManager 의 매개변수에 넣기 위해
     private final AuthenticationConfiguration authenticationManager;
     private final JWTUtil jwtUtil;
+    private final RefreshRepository refreshRepository;
 
     //시큐리티를 통해서 회원 정보 저장, 회원가입, 검증할 때는 비밀번호를 해쉬로 암호화시켜서 검증하고 진행한다.
     //Bcrypt 를 사용
@@ -87,14 +91,17 @@ public class SecurityConfig {
                 .authorizeHttpRequests((auth) -> auth
                         .requestMatchers(HttpMethod.POST, "/login", "/", "/join").permitAll()
                         .requestMatchers("/admin").hasRole("ADMIN")
+                        .requestMatchers("/reissue").permitAll()
                         .anyRequest().authenticated());
 
         //필터를 만들었다면, 등록을 해주어야 한다.
         //필터 추가 LoginFilter()는 인자를 받음(AuthenticationManager() 메소드에 authenticationConfiguration 객체를 넣어야 함) 따라서 등록 필요
         http
-                .addFilterAt(new LoginFilter(authenticationManager(authenticationManager), jwtUtil), UsernamePasswordAuthenticationFilter.class);
+                .addFilterAt(new LoginFilter(authenticationManager(authenticationManager), jwtUtil, refreshRepository), UsernamePasswordAuthenticationFilter.class);
         http
                 .addFilterBefore(new JWTFilter(jwtUtil), LoginFilter.class);
+        http
+                .addFilterBefore(new CustomLogoutFilter(jwtUtil, refreshRepository), LogoutFilter.class);
         //세션 설정
         http
                 .sessionManagement((session) -> session
